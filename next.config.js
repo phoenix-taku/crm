@@ -5,6 +5,9 @@
 import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
-const config = {};
+const config = {
+  // Optimize for Vercel deployment
+  output: undefined, // Let Vercel handle the output
+};
 
 export default config;
