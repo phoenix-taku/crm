@@ -3,11 +3,12 @@ import "~/styles/globals.css";
 import { type Metadata } from "next";
 import { Geist } from "next/font/google";
 
+import { Navbar } from "~/app/_components/navbar";
 import { TRPCReactProvider } from "~/trpc/react";
 
 export const metadata: Metadata = {
-  title: "CRM - Boilerplate",
-  description: "CRM Made with T3 Stack",
+  title: "CRM - Contact Management",
+  description: "Contact-focused CRM built with T3 Stack",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 
@@ -22,7 +23,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geist.variable}`}>
       <body>
-        <TRPCReactProvider>{children}</TRPCReactProvider>
+        <TRPCReactProvider>
+          <Navbar />
+          {children}
+        </TRPCReactProvider>
       </body>
     </html>
   );

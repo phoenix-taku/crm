@@ -1,63 +1,72 @@
-import { headers } from "next/headers";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { SignInButton } from "~/app/_components/sign-in-button";
-import { auth } from "~/server/better-auth";
 import { getSession } from "~/server/better-auth/server";
-import { api, HydrateClient } from "~/trpc/server";
+import { HydrateClient } from "~/trpc/server";
 
 export default async function Home() {
-  const hello = await api.post.hello({ text: "from tRPC" });
   const session = await getSession();
-
-  if (session) {
-    void api.post.getLatest.prefetch();
-  }
 
   return (
     <HydrateClient>
-      <main className="flex min-h-screen flex-col items-center justify-center bg-linear-to-b from-[#2e026d] to-[#15162c] text-white">
-        <div className="container flex flex-col items-center justify-center gap-12 px-4 py-16">
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-2xl text-white">
-              {hello ? hello.greeting : "Loading tRPC query..."}
+      <main className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div className="container mx-auto flex flex-1 flex-col items-center justify-center px-4 py-16">
+          <div className="w-full max-w-2xl text-center">
+            <h1 className="mb-4 text-5xl font-extrabold tracking-tight text-gray-900 sm:text-6xl">
+              Welcome to{" "}
+              <span className="text-blue-600">CRM</span>
+            </h1>
+            <p className="mb-8 text-xl text-gray-600">
+              Manage your contacts efficiently with our contact-focused CRM
+              system.
             </p>
 
-            <div className="flex flex-col items-center justify-center gap-4">
-              <p className="text-center text-2xl text-white">
-                {session && <span>Logged in as {session.user?.name}</span>}
-              </p>
-              {!session ? (
+            {!session ? (
+              <div className="flex flex-col items-center gap-4">
+                <p className="text-lg text-gray-700">
+                  Sign in to get started
+                </p>
                 <SignInButton />
-              ) : (
-                <form>
-                  <button
-                    className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
-                    formAction={async () => {
-                      "use server";
-                      await auth.api.signOut({
-                        headers: await headers(),
-                      });
-                      redirect("/");
-                    }}
-                  >
-                    Sign out
-                  </button>
-                </form>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-6">
+                <p className="text-lg text-gray-700">
+                  Welcome back, <span className="font-semibold">{session.user?.name}</span>!
+                </p>
+                <Link
+                  href="/contacts"
+                  className="inline-block rounded-lg bg-blue-600 px-8 py-3 text-lg font-semibold text-white transition hover:bg-blue-700"
+                >
+                  View Contacts
+                </Link>
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                    <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                      Manage Contacts
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Add, edit, and organize your contacts
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                    <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                      Search & Filter
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Quickly find contacts by name, email, or company
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                    <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                      Organize
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Use tags and notes to keep track of important details
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-
-          {session?.user && (
-            <div className="flex flex-col items-center gap-4">
-              <Link
-                href="/contacts"
-                className="rounded-full bg-blue-600 px-8 py-3 font-semibold no-underline transition hover:bg-blue-700"
-              >
-                Go to Contacts
-              </Link>
-            </div>
-          )}
         </div>
       </main>
     </HydrateClient>
