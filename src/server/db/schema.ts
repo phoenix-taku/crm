@@ -31,6 +31,35 @@ export const posts = createTable(
   ],
 );
 
+export const contacts = createTable(
+  "contact",
+  (d) => ({
+    id: d.text("id").primaryKey(),
+    firstName: d.text("first_name"),
+    lastName: d.text("last_name"),
+    email: d.text("email"),
+    phone: d.text("phone"),
+    company: d.text("company"),
+    jobTitle: d.text("job_title"),
+    notes: d.text("notes"),
+    tags: d.text("tags").array(),
+    createdById: d
+      .text("created_by_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: d
+      .timestamp({ withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+  }),
+  (t) => [
+    index("contact_created_by_idx").on(t.createdById),
+    index("contact_email_idx").on(t.email),
+    index("contact_company_idx").on(t.company),
+  ],
+);
+
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -94,6 +123,7 @@ export const verification = pgTable("verification", {
 export const userRelations = relations(user, ({ many }) => ({
   account: many(account),
   session: many(session),
+  contacts: many(contacts),
 }));
 
 export const accountRelations = relations(account, ({ one }) => ({
@@ -102,4 +132,11 @@ export const accountRelations = relations(account, ({ one }) => ({
 
 export const sessionRelations = relations(session, ({ one }) => ({
   user: one(user, { fields: [session.userId], references: [user.id] }),
+}));
+
+export const contactRelations = relations(contacts, ({ one }) => ({
+  createdBy: one(user, {
+    fields: [contacts.createdById],
+    references: [user.id],
+  }),
 }));
