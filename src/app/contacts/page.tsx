@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { api } from "~/trpc/react";
+import { ContactList } from "./_components/contact-list";
 
 export default function ContactsPage() {
-  const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -17,13 +17,8 @@ export default function ContactsPage() {
     tags: [] as string[],
   });
 
-  const { data, refetch, isLoading } = api.contact.getAll.useQuery({
-    search: search || undefined,
-  });
-
   const createContact = api.contact.create.useMutation({
     onSuccess: () => {
-      void refetch();
       setShowForm(false);
       setFormData({
         firstName: "",
@@ -35,12 +30,6 @@ export default function ContactsPage() {
         notes: "",
         tags: [],
       });
-    },
-  });
-
-  const deleteContact = api.contact.delete.useMutation({
-    onSuccess: () => {
-      void refetch();
     },
   });
 
@@ -173,98 +162,7 @@ export default function ContactsPage() {
         </form>
       )}
 
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Search contacts..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded border border-gray-300 px-4 py-2"
-        />
-      </div>
-
-      {isLoading ? (
-        <p>Loading contacts...</p>
-      ) : (
-        <div className="space-y-4">
-          {data?.contacts.length === 0 ? (
-            <p className="text-gray-500">No contacts found.</p>
-          ) : (
-            <>
-              <p className="text-sm text-gray-600">
-                Total: {data?.total ?? 0} contact(s)
-              </p>
-              {data?.contacts.map((contact) => (
-                <div
-                  key={contact.id}
-                  className="rounded-lg border border-gray-300 bg-white p-6 shadow"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-semibold">
-                        {contact.firstName ?? ""} {contact.lastName ?? ""}
-                        {!contact.firstName && !contact.lastName && (
-                          <span className="text-gray-400">(No name)</span>
-                        )}
-                      </h3>
-                      <div className="mt-2 space-y-1 text-sm text-gray-600">
-                        {contact.email && (
-                          <p>
-                            <strong>Email:</strong> {contact.email}
-                          </p>
-                        )}
-                        {contact.phone && (
-                          <p>
-                            <strong>Phone:</strong> {contact.phone}
-                          </p>
-                        )}
-                        {contact.company && (
-                          <p>
-                            <strong>Company:</strong> {contact.company}
-                          </p>
-                        )}
-                        {contact.jobTitle && (
-                          <p>
-                            <strong>Job Title:</strong> {contact.jobTitle}
-                          </p>
-                        )}
-                        {contact.notes && (
-                          <p>
-                            <strong>Notes:</strong> {contact.notes}
-                          </p>
-                        )}
-                        {contact.tags && contact.tags.length > 0 && (
-                          <p>
-                            <strong>Tags:</strong> {contact.tags.join(", ")}
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-400">
-                          Created:{" "}
-                          {new Date(contact.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (
-                          confirm(
-                            "Are you sure you want to delete this contact?",
-                          )
-                        ) {
-                          deleteContact.mutate({ id: contact.id });
-                        }
-                      }}
-                      className="ml-4 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
-      )}
+      <ContactList />
     </div>
   );
 }
