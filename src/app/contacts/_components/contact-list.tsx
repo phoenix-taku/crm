@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
 import {
   Table,
@@ -27,21 +28,34 @@ export function ContactList({
   limit,
 }: ContactListProps) {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const utils = api.useUtils();
+  const router = useRouter();
 
-  const { data, isLoading, refetch } = api.contact.getAll.useQuery({
-    search: search || undefined,
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300); 
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const { data, isLoading } = api.contact.getAll.useQuery({
+    search: debouncedSearch || undefined,
     limit: limit,
   });
 
   const deleteContact = api.contact.delete.useMutation({
     onSuccess: () => {
-      void refetch();
+      void utils.contact.getAll.invalidate();
     },
   });
 
   const handleRowClick = (contactId: string) => {
     if (onContactClick) {
       onContactClick(contactId);
+    } else {
+      router.push(`/contacts/${contactId}`);
     }
   };
 
@@ -103,7 +117,7 @@ export function ContactList({
                     {data?.contacts.map((contact) => (
                       <TableRow
                         key={contact.id}
-                        className={onContactClick ? "cursor-pointer" : ""}
+                        className="cursor-pointer hover:bg-muted/50"
                         onClick={() => handleRowClick(contact.id)}
                       >
                         <TableCell className="font-medium">
@@ -160,8 +174,8 @@ export function ContactList({
                                 className="h-auto p-0"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <Link href={`/contacts/${contact.id}`}>
-                                  View
+                                <Link href={`/contacts/${contact.id}/edit`}>
+                                  Edit
                                 </Link>
                               </Button>
                               <Button
