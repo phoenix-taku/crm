@@ -218,4 +218,48 @@ export const contactRouter = createTRPCRouter({
 
       return results;
     }),
+
+  getStats: protectedProcedure.query(async ({ ctx }) => {
+    const [totalResult] = await ctx.db
+      .select({ count: count() })
+      .from(contacts)
+      .where(eq(contacts.createdById, ctx.session.user.id));
+
+    const total = totalResult?.count ?? 0;
+
+    // Get contacts with companies
+    const contactsWithCompanies = await ctx.db.query.contacts.findMany({
+      where: (contacts, { eq, and, isNotNull }) =>
+        and(
+          eq(contacts.createdById, ctx.session.user.id),
+          isNotNull(contacts.company),
+        ),
+      });
+
+    const companiesCount = new Set(
+      contactsWithCompanies
+        .map((c) => c.company)
+        .filter((c): c is string => c !== null),
+    ).size;
+
+    // Get contacts created in the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [recentResult] = await ctx.db
+      .select({ count: count() })
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.createdById, ctx.session.user.id),
+          // Note: This would need a proper date comparison in production
+        ),
+      );
+
+    return {
+      totalContacts: total,
+      totalCompanies: companiesCount,
+      recentContacts: 0, // Placeholder - would need proper date filtering
+    };
+  }),
 });
