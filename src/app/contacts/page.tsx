@@ -4,47 +4,53 @@ import { useState } from "react";
 import { api } from "~/trpc/react";
 import { ContactList } from "./_components/contact-list";
 import { ContactForm } from "./_components/contact-form";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function ContactsPage() {
-  const [showForm, setShowForm] = useState(false);
+    const [showForm, setShowForm] = useState(false);
 
-  const createContact = api.contact.create.useMutation({
-    onSuccess: () => {
-      setShowForm(false);
-    },
-  });
+    const createContact = api.contact.create.useMutation({
+        onSuccess: () => {
+            setShowForm(false);
+        },
+    });
 
-  const handleCreate = async (
-    data: Parameters<typeof createContact.mutate>[0],
-  ) => {
-    createContact.mutate(data);
-  };
+    const handleCreate = async (
+        data: Parameters<typeof createContact.mutate>[0],
+    ) => {
+        createContact.mutate(data);
+    };
 
-  return (
-    <div className="container mx-auto p-8">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-4xl font-bold">Contacts</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-        >
-          {showForm ? "Cancel" : "+ Add Contact"}
-        </button>
-      </div>
+    return (
+        <div className="container mx-auto p-8">
+            <div className="mb-8 flex items-center justify-between">
+                <h1 className="text-4xl font-bold">Contacts</h1>
+                <Button
+                    onClick={() => setShowForm(!showForm)}
+                    variant={showForm ? "outline" : "default"}
+                >
+                    {showForm ? "Cancel" : "+ Add Contact"}
+                </Button>
+            </div>
 
-      {showForm && (
-        <div className="mb-8 rounded-lg border border-gray-300 bg-white p-6 shadow">
-          <h2 className="mb-4 text-2xl font-semibold">Create New Contact</h2>
-          <ContactForm
-            onSubmit={handleCreate}
-            onCancel={() => setShowForm(false)}
-            isLoading={createContact.isPending}
-            mode="create"
-          />
+            {showForm && (
+                <Card className="mb-8">
+                    <CardHeader>
+                        <CardTitle>Create New Contact</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <ContactForm
+                            onSubmit={handleCreate}
+                            onCancel={() => setShowForm(false)}
+                            isLoading={createContact.isPending}
+                            mode="create"
+                        />
+                    </CardContent>
+                </Card>
+            )}
+
+            <ContactList />
         </div>
-      )}
-
-      <ContactList />
-    </div>
-  );
+    );
 }
