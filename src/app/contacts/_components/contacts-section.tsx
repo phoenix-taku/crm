@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { ContactList, ContactForm } from "./index";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function ContactsSection() {
     const [showForm, setShowForm] = useState(false);
@@ -23,24 +25,28 @@ export function ContactsSection() {
         <div className="container mx-auto p-8">
             <div className="mb-8 flex items-center justify-between">
                 <h1 className="text-4xl font-bold">Contacts</h1>
-                <button
+                <Button
                     onClick={() => setShowForm(!showForm)}
-                    className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                    variant={showForm ? "outline" : "default"}
                 >
                     {showForm ? "Cancel" : "+ Add Contact"}
-                </button>
+                </Button>
             </div>
 
             {showForm && (
-                <div className="mb-8 rounded-lg border border-gray-300 bg-white p-6 shadow">
-                    <h2 className="mb-4 text-2xl font-semibold">Create New Contact</h2>
-                    <ContactForm
-                        onSubmit={handleCreate}
-                        onCancel={() => setShowForm(false)}
-                        isLoading={createContact.isPending}
-                        mode="create"
-                    />
-                </div>
+                <Card className="mb-8">
+                    <CardHeader>
+                        <CardTitle>Create New Contact</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <ContactForm
+                            onSubmit={handleCreate}
+                            onCancel={() => setShowForm(false)}
+                            isLoading={createContact.isPending}
+                            mode="create"
+                        />
+                    </CardContent>
+                </Card>
             )}
 
             <ContactList />

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface ContactListProps {
   onContactClick?: (contactId: string) => void;
@@ -138,12 +139,9 @@ export function ContactList({
                           {contact.tags && contact.tags.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {contact.tags.map((tag, idx) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
-                                >
+                                <Badge key={idx} variant="secondary">
                                   {tag}
-                                </span>
+                                </Badge>
                               ))}
                             </div>
                           ) : (

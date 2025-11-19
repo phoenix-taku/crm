@@ -2,6 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { z } from "zod";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 // Validation schema matching the tRPC router
 const contactFormSchema = z.object({
@@ -149,13 +154,8 @@ export function ContactForm({
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         {/* First Name */}
         <div>
-          <label
-            htmlFor="firstName"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            First Name
-          </label>
-          <input
+          <Label htmlFor="firstName">First Name</Label>
+          <Input
             type="text"
             id="firstName"
             value={formData.firstName}
@@ -165,26 +165,18 @@ export function ContactForm({
                 setErrors({ ...errors, firstName: undefined });
               }
             }}
-            className={`w-full rounded-md border px-3 py-2 shadow-sm focus:ring-1 focus:outline-none ${
-              errors.firstName
-                ? "border-red-300 focus:border-red-500 focus:ring-red-500"
-                : "border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-            }`}
+            className={errors.firstName ? "border-destructive" : ""}
+            aria-invalid={!!errors.firstName}
           />
           {errors.firstName && (
-            <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>
+            <p className="mt-1 text-sm text-destructive">{errors.firstName}</p>
           )}
         </div>
 
         {/* Last Name */}
         <div>
-          <label
-            htmlFor="lastName"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Last Name
-          </label>
-          <input
+          <Label htmlFor="lastName">Last Name</Label>
+          <Input
             type="text"
             id="lastName"
             value={formData.lastName}
@@ -194,26 +186,18 @@ export function ContactForm({
                 setErrors({ ...errors, lastName: undefined });
               }
             }}
-            className={`w-full rounded-md border px-3 py-2 shadow-sm focus:ring-1 focus:outline-none ${
-              errors.lastName
-                ? "border-red-300 focus:border-red-500 focus:ring-red-500"
-                : "border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-            }`}
+            className={errors.lastName ? "border-destructive" : ""}
+            aria-invalid={!!errors.lastName}
           />
           {errors.lastName && (
-            <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>
+            <p className="mt-1 text-sm text-destructive">{errors.lastName}</p>
           )}
         </div>
 
         {/* Email */}
         <div>
-          <label
-            htmlFor="email"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Email
-          </label>
-          <input
+          <Label htmlFor="email">Email</Label>
+          <Input
             type="email"
             id="email"
             value={formData.email}
@@ -223,168 +207,125 @@ export function ContactForm({
                 setErrors({ ...errors, email: undefined });
               }
             }}
-            className={`w-full rounded-md border px-3 py-2 shadow-sm focus:ring-1 focus:outline-none ${
-              errors.email
-                ? "border-red-300 focus:border-red-500 focus:ring-red-500"
-                : "border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-            }`}
+            className={errors.email ? "border-destructive" : ""}
+            aria-invalid={!!errors.email}
           />
           {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+            <p className="mt-1 text-sm text-destructive">{errors.email}</p>
           )}
         </div>
 
         {/* Phone */}
         <div>
-          <label
-            htmlFor="phone"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Phone
-          </label>
-          <input
+          <Label htmlFor="phone">Phone</Label>
+          <Input
             type="tel"
             id="phone"
             value={formData.phone}
             onChange={(e) => {
               setFormData({ ...formData, phone: e.target.value });
             }}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
         </div>
 
         {/* Company */}
         <div>
-          <label
-            htmlFor="company"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Company
-          </label>
-          <input
+          <Label htmlFor="company">Company</Label>
+          <Input
             type="text"
             id="company"
             value={formData.company}
             onChange={(e) => {
               setFormData({ ...formData, company: e.target.value });
             }}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
         </div>
 
         {/* Job Title */}
         <div>
-          <label
-            htmlFor="jobTitle"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Job Title
-          </label>
-          <input
+          <Label htmlFor="jobTitle">Job Title</Label>
+          <Input
             type="text"
             id="jobTitle"
             value={formData.jobTitle}
             onChange={(e) => {
               setFormData({ ...formData, jobTitle: e.target.value });
             }}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
         </div>
 
         {/* Tags */}
         <div className="sm:col-span-2">
-          <label
-            htmlFor="tags"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Tags
-          </label>
+          <Label htmlFor="tags">Tags</Label>
           <div className="mb-2 flex flex-wrap gap-2">
             {formData.tags && formData.tags.length > 0 && (
               <>
                 {formData.tags.map((tag, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800"
-                  >
+                  <Badge key={idx} variant="secondary" className="gap-1">
                     {tag}
                     <button
                       type="button"
                       onClick={() => handleRemoveTag(tag)}
-                      className="ml-1 text-blue-600 hover:text-blue-800"
+                      className="ml-1 hover:opacity-70"
                     >
                       ×
                     </button>
-                  </span>
+                  </Badge>
                 ))}
               </>
             )}
           </div>
           <div className="flex gap-2">
-            <input
+            <Input
               type="text"
               id="tags"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={handleTagInputKeyDown}
               placeholder="Add a tag and press Enter"
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className="flex-1"
             />
-            <button
-              type="button"
-              onClick={handleAddTag}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
+            <Button type="button" variant="outline" onClick={handleAddTag}>
               Add
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Notes */}
         <div className="sm:col-span-2">
-          <label
-            htmlFor="notes"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Notes
-          </label>
-          <textarea
+          <Label htmlFor="notes">Notes</Label>
+          <Textarea
             id="notes"
             rows={4}
             value={formData.notes}
             onChange={(e) => {
               setFormData({ ...formData, notes: e.target.value });
             }}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             placeholder="Add any additional notes about this contact..."
           />
         </div>
       </div>
 
       {/* Form Actions */}
-      <div className="flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
+      <div className="flex items-center justify-end gap-3 border-t pt-4">
         {onCancel && (
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={onCancel}
             disabled={isLoading}
-            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             Cancel
-          </button>
+          </Button>
         )}
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
+        <Button type="submit" disabled={isLoading}>
           {isLoading
             ? mode === "edit"
               ? "Updating..."
               : "Creating..."
             : (submitLabel ??
               (mode === "edit" ? "Update Contact" : "Create Contact"))}
-        </button>
+        </Button>
       </div>
     </form>
   );
