@@ -9,10 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function ContactsPage() {
     const [showForm, setShowForm] = useState(false);
+    const utils = api.useUtils();
 
     const createContact = api.contact.create.useMutation({
         onSuccess: () => {
             setShowForm(false);
+            void utils.contact.getAll.invalidate();
         },
     });
 
