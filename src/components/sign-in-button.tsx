@@ -12,7 +12,7 @@ export function SignInButton() {
       // Use relative path - better-auth will construct full URL from baseURL
       const res = await authClient.signIn.social({
         provider: "github",
-        callbackURL: "/",
+        callbackURL: "/dashboard",
       });
 
       // Handle redirect if URL is provided
