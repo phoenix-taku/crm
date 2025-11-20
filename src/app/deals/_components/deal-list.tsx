@@ -93,9 +93,9 @@ export function DealList({
             deal.name.toLowerCase().includes(searchLower) ||
             deal.stage.toLowerCase().includes(searchLower) ||
             (deal.dealContacts?.some((dc) =>
-                dc.contact.firstName?.toLowerCase().includes(searchLower) ||
-                dc.contact.lastName?.toLowerCase().includes(searchLower) ||
-                dc.contact.company?.toLowerCase().includes(searchLower) ||
+                dc.contact.firstName?.toLowerCase().includes(searchLower) ??
+                dc.contact.lastName?.toLowerCase().includes(searchLower) ??
+                dc.contact.company?.toLowerCase().includes(searchLower) ??
                 dc.contact.email?.toLowerCase().includes(searchLower)
             ) ?? false)
         );
