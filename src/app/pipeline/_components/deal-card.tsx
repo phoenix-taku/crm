@@ -91,7 +91,7 @@ export const DealCard = memo(function DealCard({
         >
             <CardContent className="p-4">
                 <Link
-                    href={`/deals/${deal.id}`}
+                    href={`/deals/${deal.id}?from=pipeline`}
                     onClick={(e) => e.stopPropagation()}
                     className="block space-y-3"
                 >

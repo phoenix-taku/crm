@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "~/trpc/react";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,8 @@ const STAGE_COLORS: Record<string, string> = {
 
 export function DealDetail({ dealId }: DealDetailProps) {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const from = searchParams.get("from");
     const [isEditing, setIsEditing] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const utils = api.useUtils();
@@ -46,9 +48,12 @@ export function DealDetail({ dealId }: DealDetailProps) {
         id: dealId,
     });
 
+    // Determine back navigation based on referrer
+    const backUrl = from === "pipeline" ? "/pipeline" : "/deals";
+
     const deleteDeal = api.deal.delete.useMutation({
         onSuccess: () => {
-            router.push("/deals");
+            router.push(backUrl);
         },
     });
 
@@ -68,7 +73,7 @@ export function DealDetail({ dealId }: DealDetailProps) {
         setShowDeleteDialog(false);
     };
 
-    const formatCurrency = (value: string | null, currency: string | null) => {
+    const formatCurrency = (value: string | null) => {
         if (!value) return "Not provided";
         const numValue = parseFloat(value);
         if (isNaN(numValue)) return value;
@@ -115,7 +120,9 @@ export function DealDetail({ dealId }: DealDetailProps) {
                     </AlertDescription>
                     <div className="mt-4">
                         <Button variant="outline" asChild>
-                            <Link href="/deals">← Back to Deals</Link>
+                            <Link href={from === "pipeline" ? "/pipeline" : "/deals"}>
+                                ← Back to {from === "pipeline" ? "Pipeline" : "Deals"}
+                            </Link>
                         </Button>
                     </div>
                 </Alert>
@@ -128,7 +135,9 @@ export function DealDetail({ dealId }: DealDetailProps) {
             <div className="mb-6 flex items-center justify-between">
                 <div>
                     <Button variant="ghost" asChild className="mb-2">
-                        <Link href="/deals">← Back to Deals</Link>
+                        <Link href={backUrl}>
+                            ← Back to {from === "pipeline" ? "Pipeline" : "Deals"}
+                        </Link>
                     </Button>
                     <h1 className="text-4xl font-bold">{deal.name}</h1>
                 </div>
@@ -176,7 +185,7 @@ export function DealDetail({ dealId }: DealDetailProps) {
                             <div>
                                 <dt className="text-xs font-medium text-muted-foreground mb-0.5">Deal Value</dt>
                                 <dd className="text-sm text-foreground">
-                                    {formatCurrency(deal.value, deal.currency)}
+                                    {formatCurrency(deal.value)}
                                 </dd>
                             </div>
 
@@ -324,7 +333,7 @@ export function DealDetail({ dealId }: DealDetailProps) {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Are you sure you want to delete "{deal?.name ?? ""}"? This action cannot be undone.
+                            Are you sure you want to delete &quot;{deal?.name ?? ""}&quot;? This action cannot be undone.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
