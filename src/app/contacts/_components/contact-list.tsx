@@ -24,6 +24,7 @@ import { ContactForm } from "./contact-form";
 import { useColumnConfig } from "@/hooks/use-column-config";
 import { ColumnSettingsDialog } from "@/components/column-settings-dialog";
 import { Settings2, ArrowUp, ArrowDown } from "lucide-react";
+import { ColumnFilter, type ColumnFilter as ColumnFilterType } from "@/components/column-filter";
 
 interface ContactListProps {
     onContactClick?: (contactId: string) => void;
@@ -38,6 +39,7 @@ export function ContactList({
 }: ContactListProps) {
     const [search, setSearch] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [columnFilters, setColumnFilters] = useState<ColumnFilterType[]>([]);
     const [editingContact, setEditingContact] = useState<string | null>(null);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
     const utils = api.useUtils();
@@ -96,8 +98,57 @@ export function ContactList({
 
     const { data, isLoading } = api.contact.getAll.useQuery({
         search: debouncedSearch || undefined,
+        columnFilters: columnFilters.length > 0 ? columnFilters.map((filter) => ({
+            columnId: filter.columnId,
+            columnType: filter.columnType,
+            operator: filter.operator,
+            value: filter.value,
+            value2: filter.value2,
+        })) : undefined,
         limit: limit,
     });
+
+    // Define column types for filtering
+    const columnTypes: Record<string, "text" | "number" | "date" | "enum"> = useMemo(() => {
+        const baseTypes: Record<string, "text" | "number" | "date" | "enum"> = {
+            name: "text",
+            email: "text",
+            phone: "text",
+            company: "text",
+            jobTitle: "text",
+            tags: "text",
+            notes: "text",
+            createdAt: "date",
+            updatedAt: "date",
+        };
+
+        // Add custom field types
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        customFieldDefinitions?.forEach((field) => {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+            const fieldType = field.fieldType as string;
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            if (fieldType === "number" || fieldType === "text" || fieldType === "date" || fieldType === "boolean") {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                baseTypes[field.fieldKey] = fieldType === "boolean" ? "enum" : fieldType as "text" | "number" | "date" | "enum";
+            }
+        });
+
+        return baseTypes;
+    }, [customFieldDefinitions]);
+
+    const enumOptions: Record<string, string[]> = useMemo(() => {
+        const options: Record<string, string[]> = {};
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        customFieldDefinitions?.forEach((field) => {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            if (field.fieldType === "boolean") {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                options[field.fieldKey] = ["true", "false"];
+            }
+        });
+        return options;
+    }, [customFieldDefinitions]);
 
     const sortedContacts = useMemo(() => {
         if (!data?.contacts) return [];
@@ -302,23 +353,47 @@ export function ContactList({
 
     return (
         <div className="space-y-4">
-            {/* Search Bar and Column Settings */}
-            <div className="flex gap-2">
-                <Input
-                    type="text"
-                    placeholder="Search contacts by name, email, or company..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="flex-1"
+            {/* Search Bar, Filters, and Column Settings */}
+            <div className="space-y-2">
+                <div className="flex gap-2">
+                    <Input
+                        type="text"
+                        placeholder="Search contacts by name, email, or company..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="flex-1"
+                    />
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setColumnSettingsOpen(true)}
+                        title="Column Settings"
+                    >
+                        <Settings2 className="h-4 w-4" />
+                    </Button>
+                </div>
+                <ColumnFilter
+                    columns={useMemo(() => {
+                        const visibleColumnIds = new Set(visibleColumns.map((col) => col.id));
+                        return [
+                            ...visibleColumns.map((col) => ({ id: col.id, label: col.label })),
+                            // Add custom fields as filterable columns (only if not already in visible columns)
+                            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+                            ...(customFieldDefinitions
+                                ?.filter((field) => !visibleColumnIds.has(field.fieldKey))
+                                .map((field) => ({
+                                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+                                    id: field.fieldKey,
+                                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+                                    label: field.label,
+                                })) ?? []),
+                        ];
+                    }, [visibleColumns, customFieldDefinitions])}
+                    columnTypes={columnTypes}
+                    enumOptions={enumOptions}
+                    onFilterChange={setColumnFilters}
+                    activeFilters={columnFilters}
                 />
-                <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setColumnSettingsOpen(true)}
-                    title="Column Settings"
-                >
-                    <Settings2 className="h-4 w-4" />
-                </Button>
             </div>
 
             {/* Loading State */}

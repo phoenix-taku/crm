@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, or, ilike, and, count } from "drizzle-orm";
+import { eq, desc, or, ilike, and, count, sql } from "drizzle-orm";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { contacts } from "~/server/db/schema";
@@ -22,6 +22,17 @@ export const contactRouter = createTRPCRouter({
       z
         .object({
           search: z.string().optional(),
+          columnFilters: z
+            .array(
+              z.object({
+                columnId: z.string(),
+                columnType: z.enum(["text", "number", "date", "enum"]),
+                operator: z.string(),
+                value: z.string(),
+                value2: z.string().optional(),
+              }),
+            )
+            .optional(),
           limit: z.number().min(1).max(100).default(50),
           offset: z.number().min(0).default(0),
         })
@@ -35,11 +46,173 @@ export const contactRouter = createTRPCRouter({
       if (searchCondition) {
         whereConditions.push(searchCondition);
       }
+
+      // Add column filter conditions
+      if (input?.columnFilters && input.columnFilters.length > 0) {
+        for (const filter of input.columnFilters) {
+          switch (filter.columnId) {
+            case "name":
+              if (filter.columnType === "text") {
+                const firstNameTerm =
+                  filter.operator === "contains" || filter.operator === "equals"
+                    ? `%${filter.value}%`
+                    : filter.operator === "startsWith"
+                      ? `${filter.value}%`
+                      : filter.operator === "endsWith"
+                        ? `%${filter.value}`
+                        : `%${filter.value}%`;
+                const lastNameTerm = firstNameTerm;
+                whereConditions.push(
+                  sql`(${contacts.firstName} ILIKE ${firstNameTerm} OR ${contacts.lastName} ILIKE ${lastNameTerm})`,
+                );
+              }
+              break;
+            case "email":
+              if (filter.columnType === "text") {
+                const searchTerm =
+                  filter.operator === "contains" || filter.operator === "equals"
+                    ? `%${filter.value}%`
+                    : filter.operator === "startsWith"
+                      ? `${filter.value}%`
+                      : filter.operator === "endsWith"
+                        ? `%${filter.value}`
+                        : `%${filter.value}%`;
+                whereConditions.push(ilike(contacts.email, searchTerm));
+              }
+              break;
+            case "phone":
+              if (filter.columnType === "text") {
+                const searchTerm =
+                  filter.operator === "contains" || filter.operator === "equals"
+                    ? `%${filter.value}%`
+                    : filter.operator === "startsWith"
+                      ? `${filter.value}%`
+                      : filter.operator === "endsWith"
+                        ? `%${filter.value}`
+                        : `%${filter.value}%`;
+                whereConditions.push(ilike(contacts.phone, searchTerm));
+              }
+              break;
+            case "company":
+              if (filter.columnType === "text") {
+                const searchTerm =
+                  filter.operator === "contains" || filter.operator === "equals"
+                    ? `%${filter.value}%`
+                    : filter.operator === "startsWith"
+                      ? `${filter.value}%`
+                      : filter.operator === "endsWith"
+                        ? `%${filter.value}`
+                        : `%${filter.value}%`;
+                whereConditions.push(ilike(contacts.company, searchTerm));
+              }
+              break;
+            case "jobTitle":
+              if (filter.columnType === "text") {
+                const searchTerm =
+                  filter.operator === "contains" || filter.operator === "equals"
+                    ? `%${filter.value}%`
+                    : filter.operator === "startsWith"
+                      ? `${filter.value}%`
+                      : filter.operator === "endsWith"
+                        ? `%${filter.value}`
+                        : `%${filter.value}%`;
+                whereConditions.push(ilike(contacts.jobTitle, searchTerm));
+              }
+              break;
+            case "createdAt":
+            case "updatedAt":
+              if (filter.columnType === "date") {
+                const filterDate = new Date(filter.value);
+                if (!isNaN(filterDate.getTime())) {
+                  const dateColumn =
+                    filter.columnId === "createdAt"
+                      ? contacts.createdAt
+                      : contacts.updatedAt;
+                  switch (filter.operator) {
+                    case "before":
+                      whereConditions.push(sql`${dateColumn} < ${filterDate}`);
+                      break;
+                    case "after":
+                      whereConditions.push(sql`${dateColumn} > ${filterDate}`);
+                      break;
+                    case "on":
+                      const startOfDay = new Date(filterDate);
+                      startOfDay.setHours(0, 0, 0, 0);
+                      const endOfDay = new Date(filterDate);
+                      endOfDay.setHours(23, 59, 59, 999);
+                      whereConditions.push(
+                        sql`${dateColumn} >= ${startOfDay} AND ${dateColumn} <= ${endOfDay}`,
+                      );
+                      break;
+                    case "between":
+                      if (filter.value2) {
+                        const date1 = new Date(filter.value);
+                        const date2 = new Date(filter.value2);
+                        whereConditions.push(
+                          sql`${dateColumn} >= ${date1} AND ${dateColumn} <= ${date2}`,
+                        );
+                      }
+                      break;
+                  }
+                }
+              }
+              break;
+            default:
+              // Custom field filter
+              if (filter.columnType === "number") {
+                const filterValue = parseFloat(filter.value);
+                if (!isNaN(filterValue)) {
+                  switch (filter.operator) {
+                    case "gt":
+                      whereConditions.push(
+                        sql`CAST(${contacts.customFields}->>${filter.columnId} AS NUMERIC) > ${filterValue}`,
+                      );
+                      break;
+                    case "lt":
+                      whereConditions.push(
+                        sql`CAST(${contacts.customFields}->>${filter.columnId} AS NUMERIC) < ${filterValue}`,
+                      );
+                      break;
+                    case "gte":
+                      whereConditions.push(
+                        sql`CAST(${contacts.customFields}->>${filter.columnId} AS NUMERIC) >= ${filterValue}`,
+                      );
+                      break;
+                    case "lte":
+                      whereConditions.push(
+                        sql`CAST(${contacts.customFields}->>${filter.columnId} AS NUMERIC) <= ${filterValue}`,
+                      );
+                      break;
+                    case "eq":
+                      whereConditions.push(
+                        sql`CAST(${contacts.customFields}->>${filter.columnId} AS NUMERIC) = ${filterValue}`,
+                      );
+                      break;
+                  }
+                }
+              } else if (filter.columnType === "text") {
+                const searchTerm =
+                  filter.operator === "contains" || filter.operator === "equals"
+                    ? `%${filter.value}%`
+                    : filter.operator === "startsWith"
+                      ? `${filter.value}%`
+                      : filter.operator === "endsWith"
+                        ? `%${filter.value}`
+                        : `%${filter.value}%`;
+                whereConditions.push(
+                  sql`${contacts.customFields}->>${filter.columnId} ILIKE ${searchTerm}`,
+                );
+              }
+              break;
+          }
+        }
+      }
+
       const rawWhereCondition = and(...whereConditions);
 
       const [results, totalResult] = await Promise.all([
         ctx.db.query.contacts.findMany({
-          where: (contacts, { eq, and, or, ilike }) => {
+          where: (contacts, { eq, and, or, ilike, sql: sqlFn }) => {
             const conditions = [eq(contacts.createdById, userId)];
             if (input?.search) {
               const searchTerm = `%${input.search}%`;
@@ -50,6 +223,176 @@ export const contactRouter = createTRPCRouter({
                 ilike(contacts.company, searchTerm),
               )!;
               conditions.push(searchCondition);
+            }
+            // Add column filter conditions
+            if (input?.columnFilters && input.columnFilters.length > 0) {
+              for (const filter of input.columnFilters) {
+                switch (filter.columnId) {
+                  case "name":
+                    if (filter.columnType === "text") {
+                      const firstNameTerm =
+                        filter.operator === "contains" ||
+                        filter.operator === "equals"
+                          ? `%${filter.value}%`
+                          : filter.operator === "startsWith"
+                            ? `${filter.value}%`
+                            : filter.operator === "endsWith"
+                              ? `%${filter.value}`
+                              : `%${filter.value}%`;
+                      const lastNameTerm = firstNameTerm;
+                      conditions.push(
+                        sqlFn`(${contacts.firstName} ILIKE ${firstNameTerm} OR ${contacts.lastName} ILIKE ${lastNameTerm})`,
+                      );
+                    }
+                    break;
+                  case "email":
+                    if (filter.columnType === "text") {
+                      const searchTerm =
+                        filter.operator === "contains" ||
+                        filter.operator === "equals"
+                          ? `%${filter.value}%`
+                          : filter.operator === "startsWith"
+                            ? `${filter.value}%`
+                            : filter.operator === "endsWith"
+                              ? `%${filter.value}`
+                              : `%${filter.value}%`;
+                      conditions.push(ilike(contacts.email, searchTerm));
+                    }
+                    break;
+                  case "phone":
+                    if (filter.columnType === "text") {
+                      const searchTerm =
+                        filter.operator === "contains" ||
+                        filter.operator === "equals"
+                          ? `%${filter.value}%`
+                          : filter.operator === "startsWith"
+                            ? `${filter.value}%`
+                            : filter.operator === "endsWith"
+                              ? `%${filter.value}`
+                              : `%${filter.value}%`;
+                      conditions.push(ilike(contacts.phone, searchTerm));
+                    }
+                    break;
+                  case "company":
+                    if (filter.columnType === "text") {
+                      const searchTerm =
+                        filter.operator === "contains" ||
+                        filter.operator === "equals"
+                          ? `%${filter.value}%`
+                          : filter.operator === "startsWith"
+                            ? `${filter.value}%`
+                            : filter.operator === "endsWith"
+                              ? `%${filter.value}`
+                              : `%${filter.value}%`;
+                      conditions.push(ilike(contacts.company, searchTerm));
+                    }
+                    break;
+                  case "jobTitle":
+                    if (filter.columnType === "text") {
+                      const searchTerm =
+                        filter.operator === "contains" ||
+                        filter.operator === "equals"
+                          ? `%${filter.value}%`
+                          : filter.operator === "startsWith"
+                            ? `${filter.value}%`
+                            : filter.operator === "endsWith"
+                              ? `%${filter.value}`
+                              : `%${filter.value}%`;
+                      conditions.push(ilike(contacts.jobTitle, searchTerm));
+                    }
+                    break;
+                  case "createdAt":
+                  case "updatedAt":
+                    if (filter.columnType === "date") {
+                      const filterDate = new Date(filter.value);
+                      if (!isNaN(filterDate.getTime())) {
+                        const dateColumn =
+                          filter.columnId === "createdAt"
+                            ? contacts.createdAt
+                            : contacts.updatedAt;
+                        switch (filter.operator) {
+                          case "before":
+                            conditions.push(
+                              sqlFn`${dateColumn} < ${filterDate}`,
+                            );
+                            break;
+                          case "after":
+                            conditions.push(
+                              sqlFn`${dateColumn} > ${filterDate}`,
+                            );
+                            break;
+                          case "on":
+                            const startOfDay = new Date(filterDate);
+                            startOfDay.setHours(0, 0, 0, 0);
+                            const endOfDay = new Date(filterDate);
+                            endOfDay.setHours(23, 59, 59, 999);
+                            conditions.push(
+                              sqlFn`${dateColumn} >= ${startOfDay} AND ${dateColumn} <= ${endOfDay}`,
+                            );
+                            break;
+                          case "between":
+                            if (filter.value2) {
+                              const date1 = new Date(filter.value);
+                              const date2 = new Date(filter.value2);
+                              conditions.push(
+                                sqlFn`${dateColumn} >= ${date1} AND ${dateColumn} <= ${date2}`,
+                              );
+                            }
+                            break;
+                        }
+                      }
+                    }
+                    break;
+                  default:
+                    // Custom field filter
+                    if (filter.columnType === "number") {
+                      const filterValue = parseFloat(filter.value);
+                      if (!isNaN(filterValue)) {
+                        switch (filter.operator) {
+                          case "gt":
+                            conditions.push(
+                              sqlFn`CAST(${contacts.customFields}->>${filter.columnId} AS NUMERIC) > ${filterValue}`,
+                            );
+                            break;
+                          case "lt":
+                            conditions.push(
+                              sqlFn`CAST(${contacts.customFields}->>${filter.columnId} AS NUMERIC) < ${filterValue}`,
+                            );
+                            break;
+                          case "gte":
+                            conditions.push(
+                              sqlFn`CAST(${contacts.customFields}->>${filter.columnId} AS NUMERIC) >= ${filterValue}`,
+                            );
+                            break;
+                          case "lte":
+                            conditions.push(
+                              sqlFn`CAST(${contacts.customFields}->>${filter.columnId} AS NUMERIC) <= ${filterValue}`,
+                            );
+                            break;
+                          case "eq":
+                            conditions.push(
+                              sqlFn`CAST(${contacts.customFields}->>${filter.columnId} AS NUMERIC) = ${filterValue}`,
+                            );
+                            break;
+                        }
+                      }
+                    } else if (filter.columnType === "text") {
+                      const searchTerm =
+                        filter.operator === "contains" ||
+                        filter.operator === "equals"
+                          ? `%${filter.value}%`
+                          : filter.operator === "startsWith"
+                            ? `${filter.value}%`
+                            : filter.operator === "endsWith"
+                              ? `%${filter.value}`
+                              : `%${filter.value}%`;
+                      conditions.push(
+                        sqlFn`${contacts.customFields}->>${filter.columnId} ILIKE ${searchTerm}`,
+                      );
+                    }
+                    break;
+                }
+              }
             }
             return and(...conditions);
           },
@@ -290,8 +633,8 @@ export const contactRouter = createTRPCRouter({
     // Get contacts created in the last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const [recentResult] = await ctx.db
+    
+    const [] = await ctx.db
       .select({ count: count() })
       .from(contacts)
       .where(

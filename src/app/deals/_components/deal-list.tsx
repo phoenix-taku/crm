@@ -24,6 +24,7 @@ import { DealForm } from "./deal-form";
 import { useColumnConfig } from "@/hooks/use-column-config";
 import { ColumnSettingsDialog } from "@/components/column-settings-dialog";
 import { Settings2, ArrowUp, ArrowDown } from "lucide-react";
+import { ColumnFilter, type ColumnFilter as ColumnFilterType } from "@/components/column-filter";
 
 interface DealListProps {
     onDealClick?: (dealId: string) => void;
@@ -47,6 +48,7 @@ export function DealList({
 }: DealListProps) {
     const [search, setSearch] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [columnFilters, setColumnFilters] = useState<ColumnFilterType[]>([]);
     const [editingDeal, setEditingDeal] = useState<string | null>(null);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
     const utils = api.useUtils();
@@ -105,9 +107,61 @@ export function DealList({
 
     const { data, isLoading } = api.deal.getAll.useQuery({
         search: debouncedSearch || undefined,
+        columnFilters: columnFilters.length > 0 ? columnFilters.map((filter) => ({
+            columnId: filter.columnId,
+            columnType: filter.columnType,
+            operator: filter.operator,
+            value: filter.value,
+            value2: filter.value2,
+        })) : undefined,
         limit: limit,
         includeContacts: true,
     });
+
+    // Define column types for filtering
+    const columnTypes: Record<string, "text" | "number" | "date" | "enum"> = useMemo(() => {
+        const baseTypes: Record<string, "text" | "number" | "date" | "enum"> = {
+            name: "text",
+            stage: "enum",
+            value: "number",
+            contact: "text",
+            company: "text",
+            expectedClose: "date",
+            notes: "text",
+            currency: "text",
+            createdAt: "date",
+            updatedAt: "date",
+        };
+
+        // Add custom field types
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        customFieldDefinitions?.forEach((field) => {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+            const fieldType = field.fieldType as string;
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            if (fieldType === "number" || fieldType === "text" || fieldType === "date" || fieldType === "boolean") {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                baseTypes[field.fieldKey] = fieldType === "boolean" ? "enum" : fieldType as "text" | "number" | "date" | "enum";
+            }
+        });
+
+        return baseTypes;
+    }, [customFieldDefinitions]);
+
+    const enumOptions: Record<string, string[]> = useMemo(() => {
+        const options: Record<string, string[]> = {
+            stage: ["lead", "qualified", "proposal", "negotiation", "closed-won", "closed-lost"],
+        };
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        customFieldDefinitions?.forEach((field) => {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            if (field.fieldType === "boolean") {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                options[field.fieldKey] = ["true", "false"];
+            }
+        });
+        return options;
+    }, [customFieldDefinitions]);
 
     type DealWithContacts = {
         id: string;
@@ -440,23 +494,47 @@ export function DealList({
 
     return (
         <div className="space-y-4">
-            {/* Search Bar and Column Settings */}
-            <div className="flex gap-2">
-                <Input
-                    type="text"
-                    placeholder="Search deals by name, stage, or contact..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="flex-1"
+            {/* Search Bar, Filters, and Column Settings */}
+            <div className="space-y-2">
+                <div className="flex gap-2">
+                    <Input
+                        type="text"
+                        placeholder="Search deals by name, stage, or contact..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="flex-1"
+                    />
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setColumnSettingsOpen(true)}
+                        title="Column Settings"
+                    >
+                        <Settings2 className="h-4 w-4" />
+                    </Button>
+                </div>
+                <ColumnFilter
+                    columns={useMemo(() => {
+                        const visibleColumnIds = new Set(visibleColumns.map((col) => col.id));
+                        return [
+                            ...visibleColumns.map((col) => ({ id: col.id, label: col.label })),
+                            // Add custom fields as filterable columns (only if not already in visible columns)
+                            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+                            ...(customFieldDefinitions
+                                ?.filter((field) => !visibleColumnIds.has(field.fieldKey))
+                                .map((field) => ({
+                                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+                                    id: field.fieldKey,
+                                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+                                    label: field.label,
+                                })) ?? []),
+                        ];
+                    }, [visibleColumns, customFieldDefinitions])}
+                    columnTypes={columnTypes}
+                    enumOptions={enumOptions}
+                    onFilterChange={setColumnFilters}
+                    activeFilters={columnFilters}
                 />
-                <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setColumnSettingsOpen(true)}
-                    title="Column Settings"
-                >
-                    <Settings2 className="h-4 w-4" />
-                </Button>
             </div>
 
             {/* Loading State */}

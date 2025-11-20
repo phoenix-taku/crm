@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { eq, desc, and, count, ilike } from "drizzle-orm";
+import {
+  eq,
+  desc,
+  and,
+  count,
+  ilike,
+  sql,
+} from "drizzle-orm";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { deals, dealContacts } from "~/server/db/schema";
@@ -21,6 +28,17 @@ export const dealRouter = createTRPCRouter({
         .object({
           stage: z.enum(DEAL_STAGES).optional(),
           search: z.string().optional(),
+          columnFilters: z
+            .array(
+              z.object({
+                columnId: z.string(),
+                columnType: z.enum(["text", "number", "date", "enum"]),
+                operator: z.string(),
+                value: z.string(),
+                value2: z.string().optional(),
+              }),
+            )
+            .optional(),
           limit: z.number().min(1).max(100).default(50),
           offset: z.number().min(0).default(0),
           includeContacts: z.boolean().default(true),
@@ -40,10 +58,158 @@ export const dealRouter = createTRPCRouter({
         whereConditions.push(ilike(deals.name, searchTerm));
       }
 
+      // Add column filter conditions
+      if (input?.columnFilters && input.columnFilters.length > 0) {
+        for (const filter of input.columnFilters) {
+          switch (filter.columnId) {
+            case "name":
+              if (filter.columnType === "text") {
+                const searchTerm =
+                  filter.operator === "contains" || filter.operator === "equals"
+                    ? `%${filter.value}%`
+                    : filter.operator === "startsWith"
+                      ? `${filter.value}%`
+                      : filter.operator === "endsWith"
+                        ? `%${filter.value}`
+                        : `%${filter.value}%`;
+                whereConditions.push(ilike(deals.name, searchTerm));
+              }
+              break;
+            case "stage":
+              if (filter.columnType === "enum") {
+                if (filter.operator === "equals") {
+                  whereConditions.push(eq(deals.stage, filter.value));
+                } else if (filter.operator === "in") {
+                  const stages = filter.value.split(",");
+                  whereConditions.push(sql`${deals.stage} = ANY(${stages})`);
+                }
+              }
+              break;
+            case "value":
+              if (filter.columnType === "number") {
+                const filterValue = parseFloat(filter.value);
+                if (!isNaN(filterValue)) {
+                  switch (filter.operator) {
+                    case "gt":
+                      whereConditions.push(
+                        sql`CAST(${deals.value} AS NUMERIC) > ${filterValue}`,
+                      );
+                      break;
+                    case "lt":
+                      whereConditions.push(
+                        sql`CAST(${deals.value} AS NUMERIC) < ${filterValue}`,
+                      );
+                      break;
+                    case "gte":
+                      whereConditions.push(
+                        sql`CAST(${deals.value} AS NUMERIC) >= ${filterValue}`,
+                      );
+                      break;
+                    case "lte":
+                      whereConditions.push(
+                        sql`CAST(${deals.value} AS NUMERIC) <= ${filterValue}`,
+                      );
+                      break;
+                    case "eq":
+                      whereConditions.push(
+                        sql`CAST(${deals.value} AS NUMERIC) = ${filterValue}`,
+                      );
+                      break;
+                  }
+                }
+              }
+              break;
+            case "expectedClose":
+              if (filter.columnType === "date") {
+                const filterDate = new Date(filter.value);
+                if (!isNaN(filterDate.getTime())) {
+                  switch (filter.operator) {
+                    case "before":
+                      whereConditions.push(
+                        sql`${deals.expectedCloseDate} < ${filterDate}`,
+                      );
+                      break;
+                    case "after":
+                      whereConditions.push(
+                        sql`${deals.expectedCloseDate} > ${filterDate}`,
+                      );
+                      break;
+                    case "on":
+                      const startOfDay = new Date(filterDate);
+                      startOfDay.setHours(0, 0, 0, 0);
+                      const endOfDay = new Date(filterDate);
+                      endOfDay.setHours(23, 59, 59, 999);
+                      whereConditions.push(
+                        sql`${deals.expectedCloseDate} >= ${startOfDay} AND ${deals.expectedCloseDate} <= ${endOfDay}`,
+                      );
+                      break;
+                    case "between":
+                      if (filter.value2) {
+                        const date1 = new Date(filter.value);
+                        const date2 = new Date(filter.value2);
+                        whereConditions.push(
+                          sql`${deals.expectedCloseDate} >= ${date1} AND ${deals.expectedCloseDate} <= ${date2}`,
+                        );
+                      }
+                      break;
+                  }
+                }
+              }
+              break;
+            default:
+              if (filter.columnType === "number") {
+                const filterValue = parseFloat(filter.value);
+                if (!isNaN(filterValue)) {
+                  switch (filter.operator) {
+                    case "gt":
+                      whereConditions.push(
+                        sql`CAST(${deals.customFields}->>${filter.columnId} AS NUMERIC) > ${filterValue}`,
+                      );
+                      break;
+                    case "lt":
+                      whereConditions.push(
+                        sql`CAST(${deals.customFields}->>${filter.columnId} AS NUMERIC) < ${filterValue}`,
+                      );
+                      break;
+                    case "gte":
+                      whereConditions.push(
+                        sql`CAST(${deals.customFields}->>${filter.columnId} AS NUMERIC) >= ${filterValue}`,
+                      );
+                      break;
+                    case "lte":
+                      whereConditions.push(
+                        sql`CAST(${deals.customFields}->>${filter.columnId} AS NUMERIC) <= ${filterValue}`,
+                      );
+                      break;
+                    case "eq":
+                      whereConditions.push(
+                        sql`CAST(${deals.customFields}->>${filter.columnId} AS NUMERIC) = ${filterValue}`,
+                      );
+                      break;
+                  }
+                }
+              } else if (filter.columnType === "text") {
+                const searchTerm =
+                  filter.operator === "contains" || filter.operator === "equals"
+                    ? `%${filter.value}%`
+                    : filter.operator === "startsWith"
+                      ? `${filter.value}%`
+                      : filter.operator === "endsWith"
+                        ? `%${filter.value}`
+                        : `%${filter.value}%`;
+                whereConditions.push(
+                  sql`${deals.customFields}->>${filter.columnId} ILIKE ${searchTerm}`,
+                );
+              }
+              break;
+          }
+        }
+      }
+
       const rawWhereCondition = and(...whereConditions);
 
       const queryOptions: Parameters<typeof ctx.db.query.deals.findMany>[0] = {
-        where: (deals, { eq, and, ilike: ilikeFn }) => {
+        where: (deals, { eq, and, ilike: ilikeFn, sql: sqlFn }) => {
           const conditions = [eq(deals.createdById, userId)];
           if (input?.stage) {
             conditions.push(eq(deals.stage, input.stage));
@@ -51,6 +217,156 @@ export const dealRouter = createTRPCRouter({
           if (input?.search) {
             const searchTerm = `%${input.search}%`;
             conditions.push(ilikeFn(deals.name, searchTerm));
+          }
+          // Add column filter conditions
+          if (input?.columnFilters && input.columnFilters.length > 0) {
+            for (const filter of input.columnFilters) {
+              switch (filter.columnId) {
+                case "name":
+                  if (filter.columnType === "text") {
+                    const searchTerm =
+                      filter.operator === "contains" ||
+                      filter.operator === "equals"
+                        ? `%${filter.value}%`
+                        : filter.operator === "startsWith"
+                          ? `${filter.value}%`
+                          : filter.operator === "endsWith"
+                            ? `%${filter.value}`
+                            : `%${filter.value}%`;
+                    conditions.push(ilikeFn(deals.name, searchTerm));
+                  }
+                  break;
+                case "stage":
+                  if (filter.columnType === "enum") {
+                    if (filter.operator === "equals") {
+                      conditions.push(eq(deals.stage, filter.value));
+                    } else if (filter.operator === "in") {
+                      const stages = filter.value.split(",");
+                      conditions.push(sqlFn`${deals.stage} = ANY(${stages})`);
+                    }
+                  }
+                  break;
+                case "value":
+                  if (filter.columnType === "number") {
+                    const filterValue = parseFloat(filter.value);
+                    if (!isNaN(filterValue)) {
+                      switch (filter.operator) {
+                        case "gt":
+                          conditions.push(
+                            sqlFn`CAST(${deals.value} AS NUMERIC) > ${filterValue}`,
+                          );
+                          break;
+                        case "lt":
+                          conditions.push(
+                            sqlFn`CAST(${deals.value} AS NUMERIC) < ${filterValue}`,
+                          );
+                          break;
+                        case "gte":
+                          conditions.push(
+                            sqlFn`CAST(${deals.value} AS NUMERIC) >= ${filterValue}`,
+                          );
+                          break;
+                        case "lte":
+                          conditions.push(
+                            sqlFn`CAST(${deals.value} AS NUMERIC) <= ${filterValue}`,
+                          );
+                          break;
+                        case "eq":
+                          conditions.push(
+                            sqlFn`CAST(${deals.value} AS NUMERIC) = ${filterValue}`,
+                          );
+                          break;
+                      }
+                    }
+                  }
+                  break;
+                case "expectedClose":
+                  if (filter.columnType === "date") {
+                    const filterDate = new Date(filter.value);
+                    if (!isNaN(filterDate.getTime())) {
+                      switch (filter.operator) {
+                        case "before":
+                          conditions.push(
+                            sqlFn`${deals.expectedCloseDate} < ${filterDate}`,
+                          );
+                          break;
+                        case "after":
+                          conditions.push(
+                            sqlFn`${deals.expectedCloseDate} > ${filterDate}`,
+                          );
+                          break;
+                        case "on":
+                          const startOfDay = new Date(filterDate);
+                          startOfDay.setHours(0, 0, 0, 0);
+                          const endOfDay = new Date(filterDate);
+                          endOfDay.setHours(23, 59, 59, 999);
+                          conditions.push(
+                            sqlFn`${deals.expectedCloseDate} >= ${startOfDay} AND ${deals.expectedCloseDate} <= ${endOfDay}`,
+                          );
+                          break;
+                        case "between":
+                          if (filter.value2) {
+                            const date1 = new Date(filter.value);
+                            const date2 = new Date(filter.value2);
+                            conditions.push(
+                              sqlFn`${deals.expectedCloseDate} >= ${date1} AND ${deals.expectedCloseDate} <= ${date2}`,
+                            );
+                          }
+                          break;
+                      }
+                    }
+                  }
+                  break;
+                default:
+                  // Custom field filter
+                  if (filter.columnType === "number") {
+                    const filterValue = parseFloat(filter.value);
+                    if (!isNaN(filterValue)) {
+                      switch (filter.operator) {
+                        case "gt":
+                          conditions.push(
+                            sqlFn`CAST(${deals.customFields}->>${filter.columnId} AS NUMERIC) > ${filterValue}`,
+                          );
+                          break;
+                        case "lt":
+                          conditions.push(
+                            sqlFn`CAST(${deals.customFields}->>${filter.columnId} AS NUMERIC) < ${filterValue}`,
+                          );
+                          break;
+                        case "gte":
+                          conditions.push(
+                            sqlFn`CAST(${deals.customFields}->>${filter.columnId} AS NUMERIC) >= ${filterValue}`,
+                          );
+                          break;
+                        case "lte":
+                          conditions.push(
+                            sqlFn`CAST(${deals.customFields}->>${filter.columnId} AS NUMERIC) <= ${filterValue}`,
+                          );
+                          break;
+                        case "eq":
+                          conditions.push(
+                            sqlFn`CAST(${deals.customFields}->>${filter.columnId} AS NUMERIC) = ${filterValue}`,
+                          );
+                          break;
+                      }
+                    }
+                  } else if (filter.columnType === "text") {
+                    const searchTerm =
+                      filter.operator === "contains" ||
+                      filter.operator === "equals"
+                        ? `%${filter.value}%`
+                        : filter.operator === "startsWith"
+                          ? `${filter.value}%`
+                          : filter.operator === "endsWith"
+                            ? `%${filter.value}`
+                            : `%${filter.value}%`;
+                    conditions.push(
+                      sqlFn`${deals.customFields}->>${filter.columnId} ILIKE ${searchTerm}`,
+                    );
+                  }
+                  break;
+              }
+            }
           }
           return and(...conditions);
         },
