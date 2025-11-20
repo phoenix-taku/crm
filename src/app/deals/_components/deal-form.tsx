@@ -80,6 +80,7 @@ export function DealForm({
     const [errors, setErrors] = useState<
         Partial<Record<keyof DealFormData, string>>
     >({});
+    const [contactSearch, setContactSearch] = useState("");
 
     // Update form data when initialData changes (for edit mode)
     useEffect(() => {
@@ -196,50 +197,82 @@ export function DealForm({
                 {/* Contacts */}
                 <div className="sm:col-span-2">
                     <Label>Contacts</Label>
-                    <div className="mt-2 max-h-60 overflow-y-auto rounded-md border p-3">
-                        {contacts?.contacts.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">No contacts available</p>
-                        ) : (
-                            <div className="space-y-2">
-                                {contacts?.contacts.map((contact) => {
-                                    const isSelected = formData.contactIds?.includes(contact.id) ?? false;
+                    <div className="mt-2 space-y-2">
+                        <Input
+                            type="text"
+                            placeholder="Search contacts by name, email, or company..."
+                            value={contactSearch}
+                            onChange={(e) => setContactSearch(e.target.value)}
+                            className="w-full"
+                        />
+                        <div className="max-h-30 overflow-y-auto rounded-md border p-3">
+                            {contacts?.contacts.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">No contacts available</p>
+                            ) : (() => {
+                                const filteredContacts = contacts?.contacts.filter((contact) => {
+                                    if (!contactSearch.trim()) return true;
+                                    const searchLower = contactSearch.toLowerCase();
+                                    const fullName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim().toLowerCase();
+                                    const email = contact.email?.toLowerCase() ?? "";
+                                    const company = contact.company?.toLowerCase() ?? "";
                                     return (
-                                        <label
-                                            key={contact.id}
-                                            className="flex items-center space-x-2 cursor-pointer hover:bg-muted/50 p-2 rounded-md"
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={isSelected}
-                                                onChange={(e) => {
-                                                    const currentIds = formData.contactIds ?? [];
-                                                    if (e.target.checked) {
-                                                        setFormData({
-                                                            ...formData,
-                                                            contactIds: [...currentIds, contact.id],
-                                                        });
-                                                    } else {
-                                                        setFormData({
-                                                            ...formData,
-                                                            contactIds: currentIds.filter((id) => id !== contact.id),
-                                                        });
-                                                    }
-                                                }}
-                                                className="rounded border-gray-300"
-                                            />
-                                            <span className="text-sm">
-                                                {contact.firstName || contact.lastName
-                                                    ? `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim()
-                                                    : contact.email ?? "Unnamed Contact"}
-                                                {contact.company && (
-                                                    <span className="text-muted-foreground"> - {contact.company}</span>
-                                                )}
-                                            </span>
-                                        </label>
+                                        fullName.includes(searchLower) ||
+                                        email.includes(searchLower) ||
+                                        company.includes(searchLower)
                                     );
-                                })}
-                            </div>
-                        )}
+                                }) ?? [];
+
+                                if (filteredContacts.length === 0) {
+                                    return (
+                                        <p className="text-sm text-muted-foreground">
+                                            No contacts found matching &quot;{contactSearch}&quot;
+                                        </p>
+                                    );
+                                }
+
+                                return (
+                                    <div className="space-y-2">
+                                        {filteredContacts.map((contact) => {
+                                            const isSelected = formData.contactIds?.includes(contact.id) ?? false;
+                                            return (
+                                                <label
+                                                    key={contact.id}
+                                                    className="flex items-center space-x-2 cursor-pointer hover:bg-muted/50 p-2 rounded-md"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={(e) => {
+                                                            const currentIds = formData.contactIds ?? [];
+                                                            if (e.target.checked) {
+                                                                setFormData({
+                                                                    ...formData,
+                                                                    contactIds: [...currentIds, contact.id],
+                                                                });
+                                                            } else {
+                                                                setFormData({
+                                                                    ...formData,
+                                                                    contactIds: currentIds.filter((id) => id !== contact.id),
+                                                                });
+                                                            }
+                                                        }}
+                                                        className="rounded border-gray-300"
+                                                    />
+                                                    <span className="text-sm">
+                                                        {contact.firstName || contact.lastName
+                                                            ? `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim()
+                                                            : contact.email ?? "Unnamed Contact"}
+                                                        {contact.company && (
+                                                            <span className="text-muted-foreground"> - {contact.company}</span>
+                                                        )}
+                                                    </span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })()}
+                        </div>
                     </div>
                     {formData.contactIds && formData.contactIds.length > 0 && (
                         <p className="mt-2 text-sm text-muted-foreground">
