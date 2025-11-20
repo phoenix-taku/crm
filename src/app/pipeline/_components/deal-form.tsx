@@ -51,7 +51,6 @@ export function DealForm({ onSuccess, onCancel }: DealFormProps) {
 
     const createDeal = api.deal.create.useMutation({
         onSuccess: () => {
-            void utils.deal.getAll.invalidate();
             void utils.deal.getAllForPipeline.invalidate();
             onSuccess?.();
             setName("");

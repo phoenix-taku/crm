@@ -20,7 +20,6 @@ export default function PipelinePage() {
     const createDeal = api.deal.create.useMutation({
         onSuccess: () => {
             setShowForm(false);
-            void utils.deal.getAll.invalidate();
             void utils.deal.getAllForPipeline.invalidate();
         },
     });

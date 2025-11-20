@@ -25,9 +25,7 @@ export default function EditDealPage() {
 
     const updateDeal = api.deal.update.useMutation({
         onSuccess: async () => {
-            // Invalidate queries to refetch updated data
             await utils.deal.getById.invalidate({ id: dealId });
-            await utils.deal.getAll.invalidate();
             router.push(`/deals/${dealId}`);
         },
     });

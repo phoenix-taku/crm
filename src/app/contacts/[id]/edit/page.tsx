@@ -25,9 +25,7 @@ export default function EditContactPage() {
 
     const updateContact = api.contact.update.useMutation({
         onSuccess: async () => {
-            // Invalidate queries to refetch updated data
             await utils.contact.getById.invalidate({ id: contactId });
-            await utils.contact.getAll.invalidate();
             router.push(`/contacts/${contactId}`);
         },
     });
