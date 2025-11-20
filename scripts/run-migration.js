@@ -16,7 +16,10 @@ function loadEnv() {
       if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
         const equalIndex = trimmed.indexOf("=");
         const key = trimmed.substring(0, equalIndex).trim();
-        const value = trimmed.substring(equalIndex + 1).trim().replace(/^["']|["']$/g, "");
+        const value = trimmed
+          .substring(equalIndex + 1)
+          .trim()
+          .replace(/^["']|["']$/g, "");
         if (key && value) {
           process.env[key] = value;
         }
@@ -77,11 +80,17 @@ async function runMigration() {
       }
     }
 
-    console.log("✅ Migration completed successfully!");
+    console.log("Migration completed successfully!");
   } catch (error) {
-    console.error("❌ Migration failed:", error.message);
-    if (error.code) {
-      console.error("Error code:", error.code);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorCode =
+      error && typeof error === "object" && "code" in error
+        ? error.code
+        : undefined;
+
+    console.error("Migration failed:", errorMessage);
+    if (errorCode) {
+      console.error("Error code:", errorCode);
     }
     process.exit(1);
   } finally {
