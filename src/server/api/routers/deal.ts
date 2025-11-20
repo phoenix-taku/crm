@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, and, count, inArray } from "drizzle-orm";
+import { eq, desc, and, count, ilike } from "drizzle-orm";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { deals, dealContacts } from "~/server/db/schema";
@@ -20,8 +20,10 @@ export const dealRouter = createTRPCRouter({
       z
         .object({
           stage: z.enum(DEAL_STAGES).optional(),
-          limit: z.number().min(1).max(100).default(100),
+          search: z.string().optional(),
+          limit: z.number().min(1).max(100).default(50),
           offset: z.number().min(0).default(0),
+          includeContacts: z.boolean().default(true),
         })
         .optional(),
     )
@@ -32,28 +34,44 @@ export const dealRouter = createTRPCRouter({
       if (input?.stage) {
         whereConditions.push(eq(deals.stage, input.stage));
       }
+
+      if (input?.search) {
+        const searchTerm = `%${input.search}%`;
+        whereConditions.push(ilike(deals.name, searchTerm));
+      }
+
       const rawWhereCondition = and(...whereConditions);
 
-      const [results, totalResult] = await Promise.all([
-        ctx.db.query.deals.findMany({
-          where: (deals, { eq, and }) => {
-            const conditions = [eq(deals.createdById, userId)];
-            if (input?.stage) {
-              conditions.push(eq(deals.stage, input.stage));
-            }
-            return and(...conditions);
-          },
-          with: {
-            dealContacts: {
-              with: {
-                contact: true,
-              },
+      const queryOptions: Parameters<typeof ctx.db.query.deals.findMany>[0] = {
+        where: (deals, { eq, and, ilike: ilikeFn }) => {
+          const conditions = [eq(deals.createdById, userId)];
+          if (input?.stage) {
+            conditions.push(eq(deals.stage, input.stage));
+          }
+          if (input?.search) {
+            const searchTerm = `%${input.search}%`;
+            conditions.push(ilikeFn(deals.name, searchTerm));
+          }
+          return and(...conditions);
+        },
+        orderBy: [desc(deals.createdAt)],
+        limit: input?.limit ?? 50,
+        offset: input?.offset ?? 0,
+      };
+
+      // Only include contacts if requested (for list view performance)
+      if (input?.includeContacts !== false) {
+        queryOptions.with = {
+          dealContacts: {
+            with: {
+              contact: true,
             },
           },
-          orderBy: [desc(deals.createdAt)],
-          limit: input?.limit ?? 100,
-          offset: input?.offset ?? 0,
-        }),
+        };
+      }
+
+      const [results, totalResult] = await Promise.all([
+        ctx.db.query.deals.findMany(queryOptions),
         ctx.db
           .select({ count: count() })
           .from(deals)
@@ -96,7 +114,6 @@ export const dealRouter = createTRPCRouter({
     }),
 
   getAllForPipeline: protectedProcedure.query(async ({ ctx }) => {
-    // Get all deals for the pipeline without limit constraints
     const results = await ctx.db.query.deals.findMany({
       where: (deals, { eq }) => eq(deals.createdById, ctx.session.user.id),
       with: {
@@ -360,4 +377,3 @@ export const dealRouter = createTRPCRouter({
     };
   }),
 });
-

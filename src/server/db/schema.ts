@@ -62,6 +62,7 @@ export const deals = createTable(
   (t) => [
     index("deal_created_by_idx").on(t.createdById),
     index("deal_stage_idx").on(t.stage),
+    index("deal_name_idx").on(t.name),
   ],
 );
 

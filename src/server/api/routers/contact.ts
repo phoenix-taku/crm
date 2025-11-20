@@ -43,7 +43,7 @@ export const contactRouter = createTRPCRouter({
             const conditions = [eq(contacts.createdById, userId)];
             if (input?.search) {
               const searchTerm = `%${input.search}%`;
-                  const searchCondition = or(
+              const searchCondition = or(
                 ilike(contacts.firstName, searchTerm),
                 ilike(contacts.lastName, searchTerm),
                 ilike(contacts.email, searchTerm),
@@ -227,6 +227,41 @@ export const contactRouter = createTRPCRouter({
       });
 
       return results;
+    }),
+
+  getDeals: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      // First verify the contact belongs to the user
+      const contact = await ctx.db.query.contacts.findFirst({
+        where: (contacts, { eq, and }) =>
+          and(
+            eq(contacts.id, input.id),
+            eq(contacts.createdById, ctx.session.user.id),
+          ),
+      });
+
+      if (!contact) {
+        throw new Error("Contact not found");
+      }
+
+      // Get all deal-contact relationships for this contact
+      const dealContactRelations = await ctx.db.query.dealContacts.findMany({
+        where: (dealContacts, { eq }) => eq(dealContacts.contactId, input.id),
+        with: {
+          deal: true,
+        },
+      });
+
+      // Extract deals from relationships, filter by user ownership, and remove nulls
+      const associatedDeals = dealContactRelations
+        .map((dc) => dc.deal)
+        .filter(
+          (deal): deal is NonNullable<typeof deal> =>
+            deal !== null && deal.createdById === ctx.session.user.id,
+        );
+
+      return associatedDeals;
     }),
 
   getStats: protectedProcedure.query(async ({ ctx }) => {
