@@ -22,6 +22,7 @@ export const contacts = createTable(
     jobTitle: d.text("job_title"),
     notes: d.text("notes"),
     tags: d.text("tags").array(),
+    customFields: d.jsonb("custom_fields").$type<Record<string, unknown>>(),
     createdById: d
       .text("created_by_id")
       .notNull()
@@ -54,6 +55,7 @@ export const deals = createTable(
       withTimezone: true,
     }),
     notes: d.text("notes"),
+    customFields: d.jsonb("custom_fields").$type<Record<string, unknown>>(),
     createdById: d
       .text("created_by_id")
       .notNull()
@@ -160,6 +162,7 @@ export const userRelations = relations(user, ({ many }) => ({
   session: many(session),
   contacts: many(contacts),
   deals: many(deals),
+  customFieldDefinitions: many(customFieldDefinitions),
 }));
 
 export const accountRelations = relations(account, ({ one }) => ({
@@ -196,3 +199,38 @@ export const dealContactRelations = relations(dealContacts, ({ one }) => ({
     references: [contacts.id],
   }),
 }));
+
+// Custom Field Definitions - stores metadata about user-created custom fields
+export const customFieldDefinitions = createTable(
+  "custom_field_definition",
+  (d) => ({
+    id: d.text("id").primaryKey(),
+    entityType: d.text("entity_type").notNull(), // "contact" or "deal"
+    fieldKey: d.text("field_key").notNull(), // unique key for the field (e.g., "custom_1", "budget")
+    label: d.text("label").notNull(), // display name (e.g., "Budget", "Priority")
+    fieldType: d.text("field_type").notNull(), // "text", "number", "date", "boolean"
+    createdById: d
+      .text("created_by_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: d
+      .timestamp({ withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+  }),
+  (t) => [
+    index("custom_field_entity_idx").on(t.entityType, t.createdById),
+    index("custom_field_key_idx").on(t.fieldKey, t.entityType, t.createdById),
+  ],
+);
+
+export const customFieldDefinitionRelations = relations(
+  customFieldDefinitions,
+  ({ one }) => ({
+    createdBy: one(user, {
+      fields: [customFieldDefinitions.createdById],
+      references: [user.id],
+    }),
+  }),
+);

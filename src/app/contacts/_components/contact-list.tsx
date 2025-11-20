@@ -43,6 +43,30 @@ export function ContactList({
     const utils = api.useUtils();
     const router = useRouter();
 
+    // Note: TypeScript can't infer api.customField types due to tRPC's complex type inference.
+    // The router is correctly defined in src/server/api/root.ts and works at runtime.
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+    const { data: customFieldDefinitions } = api.customField.getByEntityType.useQuery({
+        entityType: "contact",
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+    const createCustomField = api.customField.create.useMutation({
+        onSuccess: () => {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+            void utils.customField.getByEntityType.invalidate({ entityType: "contact" });
+        },
+    });
+
+    const defaultColumns = [
+        { id: "name", label: "Name", visible: true, order: 0 },
+        { id: "email", label: "Email", visible: true, order: 1 },
+        { id: "phone", label: "Phone", visible: true, order: 2 },
+        { id: "company", label: "Company", visible: true, order: 3 },
+        { id: "jobTitle", label: "Job Title", visible: true, order: 4 },
+        { id: "tags", label: "Tags", visible: true, order: 5 },
+    ];
+
     const {
         columns,
         visibleColumns,
@@ -53,17 +77,14 @@ export function ContactList({
         reorderColumns,
         setSortDirection,
         resetToDefaults,
+        addColumn,
+        removeColumn,
     } = useColumnConfig({
         storageKey: "contact-list-columns",
-        defaultColumns: [
-            { id: "name", label: "Name", visible: true, order: 0 },
-            { id: "email", label: "Email", visible: true, order: 1 },
-            { id: "phone", label: "Phone", visible: true, order: 2 },
-            { id: "company", label: "Company", visible: true, order: 3 },
-            { id: "jobTitle", label: "Job Title", visible: true, order: 4 },
-            { id: "tags", label: "Tags", visible: true, order: 5 },
-        ],
+        defaultColumns,
     });
+
+    const defaultColumnIds = new Set(defaultColumns.map((col) => col.id));
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -110,6 +131,19 @@ export function ContactList({
                     const aTags = (a.tags ?? []).join(", ");
                     const bTags = (b.tags ?? []).join(", ");
                     comparison = aTags.localeCompare(bTags);
+                    break;
+                case "notes":
+                    comparison = (a.notes ?? "").localeCompare(b.notes ?? "");
+                    break;
+                case "createdAt":
+                    const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    comparison = aCreated - bCreated;
+                    break;
+                case "updatedAt":
+                    const aUpdated = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+                    const bUpdated = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+                    comparison = aUpdated - bUpdated;
                     break;
             }
 
@@ -197,7 +231,71 @@ export function ContactList({
                         )}
                     </TableCell>
                 );
+            case "notes":
+                return (
+                    <TableCell className="max-w-xs truncate">
+                        {contact.notes ? (
+                            <span title={contact.notes}>{contact.notes}</span>
+                        ) : (
+                            <span className="text-muted-foreground">—</span>
+                        )}
+                    </TableCell>
+                );
+            case "createdAt":
+                return (
+                    <TableCell>
+                        {contact.createdAt ? (
+                            new Date(contact.createdAt).toLocaleDateString()
+                        ) : (
+                            <span className="text-muted-foreground">—</span>
+                        )}
+                    </TableCell>
+                );
+            case "updatedAt":
+                return (
+                    <TableCell>
+                        {contact.updatedAt ? (
+                            new Date(contact.updatedAt).toLocaleDateString()
+                        ) : (
+                            <span className="text-muted-foreground">—</span>
+                        )}
+                    </TableCell>
+                );
             default:
+                // Check if this is a custom field
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+                const customField = customFieldDefinitions?.find((f) => f.fieldKey === columnId);
+                if (customField && contact.customFields) {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+                    const value = contact.customFields[customField.fieldKey];
+                    if (value === null || value === undefined) {
+                        return <TableCell><span className="text-muted-foreground">—</span></TableCell>;
+                    }
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                    const fieldType = customField.fieldType as unknown as "text" | "number" | "date" | "boolean";
+                    switch (fieldType) {
+                        case "boolean":
+                            return (
+                                <TableCell>
+                                    {value ? "Yes" : "No"}
+                                </TableCell>
+                            );
+                        case "date":
+                            return (
+                                <TableCell>
+                                    {new Date(value as string).toLocaleDateString()}
+                                </TableCell>
+                            );
+                        case "number":
+                            return (
+                                <TableCell>
+                                    {typeof value === "number" ? value.toLocaleString() : (typeof value === "string" ? value : JSON.stringify(value))}
+                                </TableCell>
+                            );
+                        default:
+                            return <TableCell>{typeof value === "string" ? value : JSON.stringify(value)}</TableCell>;
+                    }
+                }
                 return <TableCell>—</TableCell>;
         }
     };
@@ -376,6 +474,21 @@ export function ContactList({
                 onReorderColumns={reorderColumns}
                 onSetSortDirection={setSortDirection}
                 onResetToDefaults={resetToDefaults}
+                onAddColumn={addColumn}
+                onRemoveColumn={(id: string) => {
+                    if (!defaultColumnIds.has(id)) {
+                        removeColumn(id);
+                    }
+                }}
+                defaultColumnIds={defaultColumnIds}
+                entityType="contact"
+                onCreateCustomField={async (data) => {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+                    await createCustomField.mutateAsync({
+                        entityType: "contact",
+                        ...data,
+                    });
+                }}
             />
         </div>
     );

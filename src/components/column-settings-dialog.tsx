@@ -1,13 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from "@/components/ui/dialog";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -33,8 +27,24 @@ import {
     verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { GripVertical, X, ArrowUpDown, ArrowUp, ArrowDown, Plus, Trash2 } from "lucide-react";
 import type { ColumnConfig, SortDirection } from "@/hooks/use-column-config";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface ColumnSettingsDialogProps {
     open: boolean;
@@ -46,6 +56,15 @@ interface ColumnSettingsDialogProps {
     onReorderColumns: (newOrder: { id: string; order: number }[]) => void;
     onSetSortDirection: (id: string, direction: SortDirection) => void;
     onResetToDefaults: () => void;
+    onAddColumn?: (column: Omit<ColumnConfig, "sortDirection" | "sortPriority">) => void;
+    onRemoveColumn?: (id: string) => void;
+    defaultColumnIds?: Set<string>;
+    entityType?: "contact" | "deal";
+    onCreateCustomField?: (data: {
+        fieldKey: string;
+        label: string;
+        fieldType: "text" | "number" | "date" | "boolean";
+    }) => Promise<void>;
 }
 
 function SortableColumnItem({
@@ -53,12 +72,16 @@ function SortableColumnItem({
     onToggleVisibility,
     onRenameColumn,
     onSetSortDirection,
+    onRemoveColumn,
+    isDefaultColumn,
 }: {
     column: ColumnConfig;
     onUpdateColumn: (id: string, updates: Partial<ColumnConfig>) => void;
     onToggleVisibility: (id: string) => void;
     onRenameColumn: (id: string, newLabel: string) => void;
     onSetSortDirection: (id: string, direction: SortDirection) => void;
+    onRemoveColumn?: (id: string) => void;
+    isDefaultColumn?: boolean;
 }) {
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState(column.label);
@@ -164,6 +187,18 @@ function SortableColumnItem({
                     )}
                 </DropdownMenuContent>
             </DropdownMenu>
+
+            {!isDefaultColumn && onRemoveColumn && (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-destructive hover:text-destructive"
+                    onClick={() => onRemoveColumn(column.id)}
+                    title="Remove column"
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            )}
         </div>
     );
 }
@@ -178,7 +213,17 @@ export function ColumnSettingsDialog({
     onReorderColumns,
     onSetSortDirection,
     onResetToDefaults,
+    onAddColumn,
+    onRemoveColumn,
+    defaultColumnIds,
+    entityType,
+    onCreateCustomField,
 }: ColumnSettingsDialogProps) {
+    const [createFieldOpen, setCreateFieldOpen] = useState(false);
+    const [newFieldLabel, setNewFieldLabel] = useState("");
+    const [newFieldType, setNewFieldType] = useState<"text" | "number" | "date" | "boolean">("text");
+    const [isCreating, setIsCreating] = useState(false);
+
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -203,50 +248,170 @@ export function ColumnSettingsDialog({
         }
     };
 
+    const isDefaultColumn = (id: string) => {
+        return defaultColumnIds?.has(id) ?? false;
+    };
+
+    const handleCreateCustomField = async () => {
+        if (!newFieldLabel.trim() || !onCreateCustomField) return;
+
+        setIsCreating(true);
+        try {
+            // Generate a unique field key from the label
+            const fieldKey = `custom_${newFieldLabel
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "_")
+                .replace(/^_+|_+$/g, "")}_${Date.now()}`;
+
+            await onCreateCustomField({
+                fieldKey,
+                label: newFieldLabel.trim(),
+                fieldType: newFieldType,
+            });
+
+            // Add the new field as a column
+            if (onAddColumn) {
+                onAddColumn({
+                    id: fieldKey,
+                    label: newFieldLabel.trim(),
+                    visible: true,
+                    order: columns.length,
+                });
+            }
+
+            setNewFieldLabel("");
+            setNewFieldType("text");
+            setCreateFieldOpen(false);
+        } catch (error) {
+            console.error("Failed to create custom field:", error);
+            alert(error instanceof Error ? error.message : "Failed to create custom field");
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>Column Settings</DialogTitle>
-                    <DialogDescription>
-                        Drag to reorder, click to rename, and use the sort menu to sort columns.
-                    </DialogDescription>
-                </DialogHeader>
+        <>
+            <Dialog open={open} onOpenChange={onOpenChange}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Column Settings</DialogTitle>
+                        <DialogDescription>
+                            Drag to reorder, click to rename, and use the sort menu to sort columns.
+                        </DialogDescription>
+                    </DialogHeader>
 
-                <div className="space-y-4">
-                    <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEnd}
-                    >
-                        <SortableContext
-                            items={columns.map((col) => col.id)}
-                            strategy={verticalListSortingStrategy}
-                        >
+                    <div className="space-y-4">
+                        {/* Create Custom Field Section */}
+                        {onCreateCustomField && entityType && (
                             <div className="space-y-2">
-                                {columns.map((column) => (
-                                    <SortableColumnItem
-                                        key={column.id}
-                                        column={column}
-                                        onUpdateColumn={onUpdateColumn}
-                                        onToggleVisibility={onToggleVisibility}
-                                        onRenameColumn={onRenameColumn}
-                                        onSetSortDirection={onSetSortDirection}
-                                    />
-                                ))}
+                                <label className="text-sm font-medium">Custom Fields</label>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setCreateFieldOpen(true)}
+                                    className="w-full"
+                                >
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Create Custom Field
+                                </Button>
                             </div>
-                        </SortableContext>
-                    </DndContext>
+                        )}
 
-                    <div className="flex justify-end gap-2 pt-4 border-t">
-                        <Button variant="outline" onClick={onResetToDefaults}>
-                            Reset to Defaults
-                        </Button>
-                        <Button onClick={() => onOpenChange(false)}>Done</Button>
+                        {/* Existing Columns */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Columns</label>
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
+                            >
+                                <SortableContext
+                                    items={columns.map((col) => col.id)}
+                                    strategy={verticalListSortingStrategy}
+                                >
+                                    <div className="space-y-2">
+                                        {columns.map((column) => (
+                                            <SortableColumnItem
+                                                key={column.id}
+                                                column={column}
+                                                onUpdateColumn={onUpdateColumn}
+                                                onToggleVisibility={onToggleVisibility}
+                                                onRenameColumn={onRenameColumn}
+                                                onSetSortDirection={onSetSortDirection}
+                                                onRemoveColumn={onRemoveColumn}
+                                                isDefaultColumn={isDefaultColumn(column.id)}
+                                            />
+                                        ))}
+                                    </div>
+                                </SortableContext>
+                            </DndContext>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-4 border-t">
+                            <Button variant="outline" onClick={onResetToDefaults}>
+                                Reset to Defaults
+                            </Button>
+                            <Button onClick={() => onOpenChange(false)}>Done</Button>
+                        </div>
                     </div>
-                </div>
-            </DialogContent>
-        </Dialog>
+                </DialogContent>
+            </Dialog>
+
+            {/* Create Custom Field Dialog */}
+            <Dialog open={createFieldOpen} onOpenChange={setCreateFieldOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Create Custom Field</DialogTitle>
+                        <DialogDescription>
+                            Add a new custom field to your {entityType} list. This field will be available for all {entityType}s.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="field-label">Field Name</Label>
+                            <Input
+                                id="field-label"
+                                placeholder="e.g., Budget, Priority, Status"
+                                value={newFieldLabel}
+                                onChange={(e) => setNewFieldLabel(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && newFieldLabel.trim()) {
+                                        void handleCreateCustomField();
+                                    }
+                                }}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="field-type">Field Type</Label>
+                            <Select
+                                value={newFieldType}
+                                onValueChange={(value: "text" | "number" | "date" | "boolean") =>
+                                    setNewFieldType(value)
+                                }
+                            >
+                                <SelectTrigger id="field-type">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="text">Text</SelectItem>
+                                    <SelectItem value="number">Number</SelectItem>
+                                    <SelectItem value="date">Date</SelectItem>
+                                    <SelectItem value="boolean">Yes/No</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setCreateFieldOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleCreateCustomField} disabled={!newFieldLabel.trim() || isCreating}>
+                            {isCreating ? "Creating..." : "Create Field"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
 

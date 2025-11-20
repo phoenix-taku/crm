@@ -1,5 +1,6 @@
 import { contactRouter } from "~/server/api/routers/contact";
 import { dealRouter } from "~/server/api/routers/deal";
+import { customFieldRouter } from "~/server/api/routers/customField";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -10,6 +11,7 @@ import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 export const appRouter = createTRPCRouter({
   contact: contactRouter,
   deal: dealRouter,
+  customField: customFieldRouter,
 });
 
 // export type definition of API

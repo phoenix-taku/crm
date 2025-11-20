@@ -169,6 +169,33 @@ export function useColumnConfig({
     );
   }, [defaultColumns]);
 
+  const addColumn = useCallback(
+    (column: Omit<ColumnConfig, "sortDirection" | "sortPriority">) => {
+      setColumns((prev) => {
+        // Check if column already exists
+        if (prev.some((col) => col.id === column.id)) {
+          return prev;
+        }
+        // Add new column at the end
+        const maxOrder = Math.max(...prev.map((col) => col.order), -1);
+        return [
+          ...prev,
+          {
+            ...column,
+            order: maxOrder + 1,
+            sortDirection: null as SortDirection,
+            sortPriority: 0,
+          },
+        ];
+      });
+    },
+    [],
+  );
+
+  const removeColumn = useCallback((id: string) => {
+    setColumns((prev) => prev.filter((col) => col.id !== id));
+  }, []);
+
   const visibleColumns = columns
     .filter((col) => col.visible)
     .sort((a, b) => a.order - b.order);
@@ -185,5 +212,7 @@ export function useColumnConfig({
     setSortDirection,
     clearSort,
     resetToDefaults,
+    addColumn,
+    removeColumn,
   };
 }

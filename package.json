@@ -12,6 +12,7 @@
     "db:studio": "drizzle-kit studio",
     "db:migrate:deals": "node scripts/run-migration.js",
     "db:migrate:deal-contacts": "node scripts/apply-deal-contacts-migration.js",
+    "db:migrate:custom-fields": "node scripts/apply-custom-fields-migration.js",
     "dev": "next dev --turbo",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",

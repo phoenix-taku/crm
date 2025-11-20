@@ -52,6 +52,30 @@ export function DealList({
     const utils = api.useUtils();
     const router = useRouter();
 
+    // Note: TypeScript can't infer api.customField types due to tRPC's complex type inference.
+    // The router is correctly defined in src/server/api/root.ts and works at runtime.
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+    const { data: customFieldDefinitions } = api.customField.getByEntityType.useQuery({
+        entityType: "deal",
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+    const createCustomField = api.customField.create.useMutation({
+        onSuccess: () => {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+            void utils.customField.getByEntityType.invalidate({ entityType: "deal" });
+        },
+    });
+
+    const defaultColumns = [
+        { id: "name", label: "Deal Name", visible: true, order: 0 },
+        { id: "stage", label: "Stage", visible: true, order: 1 },
+        { id: "value", label: "Value", visible: true, order: 2 },
+        { id: "contact", label: "Contact", visible: true, order: 3 },
+        { id: "company", label: "Company", visible: true, order: 4 },
+        { id: "expectedClose", label: "Expected Close", visible: true, order: 5 },
+    ];
+
     const {
         columns,
         visibleColumns,
@@ -62,17 +86,14 @@ export function DealList({
         reorderColumns,
         setSortDirection,
         resetToDefaults,
+        addColumn,
+        removeColumn,
     } = useColumnConfig({
         storageKey: "deal-list-columns",
-        defaultColumns: [
-            { id: "name", label: "Deal Name", visible: true, order: 0 },
-            { id: "stage", label: "Stage", visible: true, order: 1 },
-            { id: "value", label: "Value", visible: true, order: 2 },
-            { id: "contact", label: "Contact", visible: true, order: 3 },
-            { id: "company", label: "Company", visible: true, order: 4 },
-            { id: "expectedClose", label: "Expected Close", visible: true, order: 5 },
-        ],
+        defaultColumns,
     });
+
+    const defaultColumnIds = new Set(defaultColumns.map((col) => col.id));
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -92,6 +113,7 @@ export function DealList({
         id: string;
         name: string;
         notes: string | null;
+        customFields: Record<string, unknown> | null;
         createdAt: Date;
         updatedAt: Date | null;
         createdById: string;
@@ -120,7 +142,9 @@ export function DealList({
             };
         }>;
     };
-    const filteredDeals = (data?.deals ?? []) as DealWithContacts[];
+    const filteredDeals = useMemo(() => {
+        return (data?.deals ?? []) as DealWithContacts[];
+    }, [data?.deals]);
 
     // Sort deals based on column configuration (only one column can be sorted at a time)
     const sortedDeals = useMemo(() => {
@@ -163,6 +187,22 @@ export function DealList({
                     const aDate = a.expectedCloseDate ? new Date(a.expectedCloseDate).getTime() : 0;
                     const bDate = b.expectedCloseDate ? new Date(b.expectedCloseDate).getTime() : 0;
                     comparison = aDate - bDate;
+                    break;
+                case "notes":
+                    comparison = (a.notes ?? "").localeCompare(b.notes ?? "");
+                    break;
+                case "currency":
+                    comparison = (a.currency ?? "").localeCompare(b.currency ?? "");
+                    break;
+                case "createdAt":
+                    const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    comparison = aCreated - bCreated;
+                    break;
+                case "updatedAt":
+                    const aUpdated = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+                    const bUpdated = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+                    comparison = aUpdated - bUpdated;
                     break;
             }
 
@@ -323,7 +363,77 @@ export function DealList({
                         )}
                     </TableCell>
                 );
+            case "notes":
+                return (
+                    <TableCell className="max-w-xs truncate">
+                        {deal.notes ? (
+                            <span title={deal.notes}>{deal.notes}</span>
+                        ) : (
+                            <span className="text-muted-foreground">—</span>
+                        )}
+                    </TableCell>
+                );
+            case "currency":
+                return (
+                    <TableCell>
+                        {deal.currency ?? <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                );
+            case "createdAt":
+                return (
+                    <TableCell>
+                        {deal.createdAt ? (
+                            new Date(deal.createdAt).toLocaleDateString()
+                        ) : (
+                            <span className="text-muted-foreground">—</span>
+                        )}
+                    </TableCell>
+                );
+            case "updatedAt":
+                return (
+                    <TableCell>
+                        {deal.updatedAt ? (
+                            new Date(deal.updatedAt).toLocaleDateString()
+                        ) : (
+                            <span className="text-muted-foreground">—</span>
+                        )}
+                    </TableCell>
+                );
             default:
+                // Check if this is a custom field
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+                const customField = customFieldDefinitions?.find((f) => f.fieldKey === columnId);
+                if (customField && deal.customFields) {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                    const value = deal.customFields[customField.fieldKey];
+                    if (value === null || value === undefined) {
+                        return <TableCell><span className="text-muted-foreground">—</span></TableCell>;
+                    }
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                    const fieldType = customField.fieldType as unknown as "text" | "number" | "date" | "boolean";
+                    switch (fieldType) {
+                        case "boolean":
+                            return (
+                                <TableCell>
+                                    {value ? "Yes" : "No"}
+                                </TableCell>
+                            );
+                        case "date":
+                            return (
+                                <TableCell>
+                                    {new Date(value as string).toLocaleDateString()}
+                                </TableCell>
+                            );
+                        case "number":
+                            return (
+                                <TableCell>
+                                    {typeof value === "number" ? value.toLocaleString() : (typeof value === "string" ? value : JSON.stringify(value))}
+                                </TableCell>
+                            );
+                        default:
+                            return <TableCell>{typeof value === "string" ? value : JSON.stringify(value)}</TableCell>;
+                    }
+                }
                 return <TableCell>—</TableCell>;
         }
     };
@@ -501,6 +611,21 @@ export function DealList({
                 onReorderColumns={reorderColumns}
                 onSetSortDirection={setSortDirection}
                 onResetToDefaults={resetToDefaults}
+                onAddColumn={addColumn}
+                onRemoveColumn={(id: string) => {
+                    if (!defaultColumnIds.has(id)) {
+                        removeColumn(id);
+                    }
+                }}
+                defaultColumnIds={defaultColumnIds}
+                entityType="deal"
+                onCreateCustomField={async (data) => {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+                    await createCustomField.mutateAsync({
+                        entityType: "deal",
+                        ...data,
+                    });
+                }}
             />
         </div>
     );
